@@ -3,8 +3,8 @@
 target/
 dbt_packages/
 logs/
+reports/
+snapshots/
 
-*.html
 liquibase/.user.yml
 
-Snapshot_*.json
