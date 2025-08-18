@@ -21,10 +21,17 @@ globalVariables:
   DBT_MODELS: "${DBT_MODELS:-customer_order_summary orders_view}"
   DBT_PROFILE: "${DBT_PROFILE:-liquibase}"
   DBT_PROJECT_DIR: "${DBT_PROJECT_DIR:-/Users/adeelmalik/Desktop/LiquibaseHub/DBT}"
+  DBT_URL: "jdbc:snowflake://ba89345.us-east-2.aws.snowflakecomputing.com/?warehouse=CUSTOMERSUCCESS_WH&db=AMDB&schema=DBT&user=adeelmalik"
+  DBT_OFFLINE_URL: "offline:snowflake?snapshot=${LB_BASE_DIR}/${SNAPSHOT_FILE}"
 
-  CHECKS_REPORT: "Checks_${LB_ENVIRONMENT}.html"
-  SNAPSHOT_FILE: "Snapshot_${LB_ENVIRONMENT}.json"
-  UPDATE_REPORT: "Update_${LB_ENVIRONMENT}.html"
+  CHANGELOG_FILE: "Changesets/liquibase.incremental.snowflake.sql"
+
+  CHECKS_REPORT: "reports/Checks_${LB_ENVIRONMENT}.html"
+  UPDATE_REPORT: "reports/Update_${LB_ENVIRONMENT}.html"
+  DRIFT_REPORT: "reports/Drift_${LB_ENVIRONMENT}.html"
+  DIFF_JSON_FILE: "reports/diff.json"
+
+  SNAPSHOT_FILE: "snapshots/Snapshot_${LB_ENVIRONMENT}.json"
 
 ###
 ### Stages to execute
@@ -38,19 +45,106 @@ stages:
       #
       - type: liquibase
         command: connect
+      # #
+      # # Validate changelog
+      # # https://docs.liquibase.com/commands/utility/validate.html
+      # #
+      # - type: liquibase
+      #   command: validate
       #
-      # Validate changelog
-      # https://docs.liquibase.com/commands/utility/validate.html
+      # # View pending changes
+      # # https://docs.liquibase.com/commands/change-tracking/status.html
+      # #
+      # - type: liquibase
+      #   command: status
+      #   cmdArgs: { label-filter: "${LB_LABELS}" }
+  Snapshot:
+    actions:
+      #
+      # Create updated snapshot
+      # https://docs.liquibase.com/commands/inspection/snapshot.html
       #
       - type: liquibase
-        command: validate
+        command: snapshot
+        cmdArgs: { snapshotFormat: "json" }
+        globalArgs: { outputfile: "${LB_BASE_DIR}/${SNAPSHOT_FILE}" }
+
+  # Deploy:
+  #   actions:
+  #     #
+  #     # Exit if no pending changes
+  #     # https://docs.liquibase.com/liquibase-pro/flow/home.html
+  #     #
+  #     - type: control
+  #       if: "status.changesetCount == 0"
+  #       command: exit
+  #       cmdArgs: { exitCode: "0", exitMessage: "Database is current!" }
+  #     #
+  #     # Update database
+  #     # https://docs.liquibase.com/commands/update/update.html
+  #     #
+  #     - type: liquibase
+  #       command: update
+  #       cmdArgs: { label-filter: "${LB_LABELS}", 
+  #                     report-enabled: "true", 
+  #                     report-path: "${LB_BASE_DIR}", 
+  #                     report-name: "${UPDATE_REPORT}" }
+  #       globalArgs: { reports-open: "false" }
+  DBT:
+    actions:
       #
-      # View pending changes
-      # https://docs.liquibase.com/commands/change-tracking/status.html
+      # Run Data Build Tool
       #
+      - type: shell
+        command: dbt build --profile ${DBT_PROFILE} --project-dir ${DBT_PROJECT_DIR} --select "${DBT_MODELS}" --full-refresh
+  # PostDeploy:
+    # actions:
+    #   #
+    #   # Create updated snapshot
+    #   # https://docs.liquibase.com/commands/inspection/snapshot.html
+    #   #
+    #   - type: liquibase
+    #     command: snapshot
+    #     globalArgs: { outputfile: "${LB_BASE_DIR}/${SNAPSHOT_FILE}" }
+    #     cmdArgs: { snapshotFormat: "json" }
+
+  Drift_Detection:
+    actions:
       - type: liquibase
-        command: status
-        cmdArgs: { label-filter: "${LB_LABELS}" }
+        command: diff
+        cmdArgs: { referenceUrl: "${DBT_URL}",
+                      url: "${DBT_OFFLINE_URL}", 
+                      format: json,
+                      reports-enabled: "true",
+                      reports-path: "reports",
+                      reports-name: "${DRIFT_REPORT}"
+                      # drift-severity: 1,
+                      # drift-severity-missing: 2,
+                      # drift-severity-unexpected: 3,
+                      # drift-severity-changed: 4
+                  }
+        globalArgs: { outputFile: "${DIFF_JSON_FILE}", 
+                        mirror-console-messages-to-log: "true"
+                    }
+  Diff_Changlog:
+    actions:
+      - type: liquibase
+        command: diff-changelog
+        cmdArgs: { referenceUrl: "${DBT_URL}",
+                      url: "${DBT_OFFLINE_URL}", 
+                      changelog-file: "${CHANGELOG_FILE}",
+                      overwrite-output-file: "true"
+                      # drift-severity: 1,
+                      # drift-severity-missing: 2,
+                      # drift-severity-unexpected: 3,
+                      # drift-severity-changed: 4
+                  }
+        # globalArgs: { outputFile: "06.diff.json", mirror-console-messages-to-log: "true",
+        #                   reports-enabled: "true",
+        #                   reports-path: "reports",
+        #                   reports-name: "${DRIFT_REPORT}"
+        #             }
+
   PolicyChecks:
     actions:
       #
@@ -68,43 +162,15 @@ stages:
       - type: liquibase
         if: "${LB_TEST_CHECKS} == T"
         command: checks run
-        cmdArgs: { report-enabled: "true", report-path: "${LB_BASE_DIR}", report-name: "${CHECKS_REPORT}", checks-output: "issues", checks-scope: "changelog, database", changeset-filter: "pending", auto-update: "on" }
+        cmdArgs: { report-enabled: "true", 
+                      report-path: "${LB_BASE_DIR}", 
+                      report-name: "${CHECKS_REPORT}", 
+                      checks-output: "issues", 
+                      checks-scope: "changelog, database", 
+                      changeset-filter: "pending", 
+                      auto-update: "on" 
+                  }
         globalArgs: { reports-open: "false" }
-  Deploy:
-    actions:
-      #
-      # Exit if no pending changes
-      # https://docs.liquibase.com/liquibase-pro/flow/home.html
-      #
-      - type: control
-        if: "status.changesetCount == 0"
-        command: exit
-        cmdArgs: { exitCode: "0", exitMessage: "Database is current!" }
-      #
-      # Update database
-      # https://docs.liquibase.com/commands/update/update.html
-      #
-      - type: liquibase
-        command: update
-        cmdArgs: { label-filter: "${LB_LABELS}", report-enabled: "true", report-path: "${LB_BASE_DIR}", report-name: "${UPDATE_REPORT}" }
-        globalArgs: { reports-open: "false" }
-  DBT:
-    actions:
-      #
-      # Run Data Build Tool
-      #
-      - type: shell
-        command: dbt build --profile ${DBT_PROFILE} --project-dir ${DBT_PROJECT_DIR} --select "${DBT_MODELS}" --full-refresh
-  PostDeploy:
-    actions:
-      #
-      # Create updated snapshot
-      # https://docs.liquibase.com/commands/inspection/snapshot.html
-      #
-      - type: liquibase
-        command: snapshot
-        globalArgs: { outputfile: "${LB_BASE_DIR}/${SNAPSHOT_FILE}" }
-        cmdArgs: { snapshotFormat: "json" }
 
 ###
 ### Always execute
