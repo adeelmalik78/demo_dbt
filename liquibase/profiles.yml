@@ -1,4 +1,4 @@
-liquibase:
+liquibase_dev:
   target: dev
   outputs:
     dev:
@@ -6,10 +6,11 @@ liquibase:
       account: BA89345.us-east-2.aws
       user: adeelmalik
       role: LIQUIBASE_USER
-      database: AMDB
+      database: AMDB_DEV
       warehouse: CUSTOMERSUCCESS_WH
       schema: DBT
       threads: 4
       client_session_keep_alive: False
       private_key_path: /Users/adeelmalik/adeelmalik.p8
       private_key_passphrase: "1234"
+

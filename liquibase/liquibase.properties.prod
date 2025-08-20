@@ -2,17 +2,25 @@
 ### https://docs.liquibase.com/concepts/connections/creating-config-properties.html
 ###
 # url: jdbc:snowflake://ba89345.us-east-2.aws.snowflakecomputing.com/?warehouse=CUSTOMERSUCCESS_WH&db=AMDB&schema=PUBLIC&user=adeelmalik
+# changelogFile: Changelogs/liquibase.initial.sql
+
 url: jdbc:snowflake://ba89345.us-east-2.aws.snowflakecomputing.com/?warehouse=CUSTOMERSUCCESS_WH&db=AMDB&schema=DBT&user=adeelmalik
+changelogFile: Changelogs/changelog.dbt.xml
+
+# url: jdbc:snowflake://ba89345.us-east-2.aws.snowflakecomputing.com/?warehouse=CUSTOMERSUCCESS_WH&db=AMDB_DEV&schema=PUBLIC&user=adeelmalik
+# changelogFile: Changelogs/liquibase.initial.sql
+
+# url: jdbc:snowflake://ba89345.us-east-2.aws.snowflakecomputing.com/?warehouse=CUSTOMERSUCCESS_WH&db=AMDB_DEV&schema=DBT&user=adeelmalik
+
 # ---- Snowflake Properties -------
 liquibase.snowflake.auth.type=PKI
 liquibase.snowflake.auth.privateKeyPath=/Users/adeelmalik/adeelmalik.p8
 liquibase.snowflake.auth.privateKeyPassphrase=1234
 
-changelogFile: changelog.main.xml
 ###
 ### Diff
 ###
-liquibase.command.referenceUrl: jdbc:snowflake://ba89345.us-east-2.aws.snowflakecomputing.com/?warehouse=CUSTOMERSUCCESS_WH&db=AMDB&schema=DBT&user=adeelmalik
+liquibase.command.referenceUrl: jdbc:snowflake://ba89345.us-east-2.aws.snowflakecomputing.com/?warehouse=CUSTOMERSUCCESS_WH&db=AMDB_DEV&schema=DBT&user=adeelmalik
 ###
 ### Options
 ###

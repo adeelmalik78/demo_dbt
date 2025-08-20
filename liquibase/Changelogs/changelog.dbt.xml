@@ -9,6 +9,9 @@
         http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd
         http://www.liquibase.org/xml/ns/pro http://www.liquibase.org/xml/ns/pro/liquibase-pro-latest.xsd">
 
-    <includeAll path="Changesets/" errorIfMissingOrEmpty="false"/>
+    <property name="DATABASE.NAME" value="AMDB_DEV"  context="DEV"/>
+    <property name="DATABASE.NAME" value="AMDB"  context="PROD"/>
+
+    <includeAll path="../../target/run/liquibase/models" maxDepth="1" endsWithFilter=".sql" relativeToChangelogFile="true"/>
 
 </databaseChangeLog>

@@ -15,35 +15,52 @@
 globalVariables:
   LB_BASE_DIR: "${LB_BASE_DIR:-.}"
   LB_ENVIRONMENT: "${LB_ENVIRONMENT:-DEV}"
-  NEW_CHANGELOG_FILE: "liquibase.snowflake.sql"
-  SNAPSHOT_FILE: "Snapshot_${LB_ENVIRONMENT}.json"
+  DEV_URL: "${DEV_URL:-jdbc:snowflake://ba89345.us-east-2.aws.snowflakecomputing.com/?warehouse=CUSTOMERSUCCESS_WH&db=AMDB_DEV&schema=DBT&user=adeelmalik}"
+  PROD_URL: "${PROD_URL:-jdbc:snowflake://ba89345.us-east-2.aws.snowflakecomputing.com/?warehouse=CUSTOMERSUCCESS_WH&db=AMDB&schema=DBT&user=adeelmalik}"
 
 ###
 ### Stages to execute
 ###
 stages:
-  Default:
+  Remove_Folders:
     actions:
       #
       # Rollback last updates
       #
-      - type: liquibase
-        command: rollback-count
-        globalArgs: { reports-enabled: "false" }
-        cmdArgs: { count: "6" }
+      # - type: liquibase
+      #   command: rollback-count
+      #   globalArgs: { reports-enabled: "false" }
+      #   cmdArgs: { count: "6" }
       #
       # Remove files
       #
       - type: shell
-        command: rm -rf *_${LB_ENVIRONMENT}.html *_${LB_ENVIRONMENT}.json Changesets\${NEW_CHANGELOG_FILE}
-        # command: del /f *_${LB_ENVIRONMENT}.html *_${LB_ENVIRONMENT}.json Changesets\${NEW_CHANGELOG_FILE}
-      #
-      # Create updated snapshot
-      #
+        command: rm -rf reports snapshots ../target
+
+  Reset_DEV:
+    actions:
+      # - type: liquibase
+      #   command: execute-sql
+      #   cmdArgs: { url: "${DEV_URL}", sql: "drop table amdb_dev.dbt.DATABASECHANGELOGHISTORY"}
+      #   globalArgs: {dbclhistory-enabled: "false"}
+
       - type: liquibase
-        command: snapshot
-        globalArgs: { outputfile: "${LB_BASE_DIR}/${SNAPSHOT_FILE}" }
-        cmdArgs: { snapshotFormat: "json" }
+        command: dropall
+        cmdArgs: { url: "${DEV_URL}" }
+        globalArgs: {dbclhistory-enabled: "false"}
+
+  Reset_PROD:
+    actions:
+      # - type: liquibase
+      #   command: execute-sql
+      #   cmdArgs: { url: "${PROD_URL}", sql: "drop table amdb.dbt.DATABASECHANGELOGHISTORY"}
+      #   globalArgs: {dbclhistory-enabled: "false"}
+
+      - type: liquibase
+        command: dropall
+        cmdArgs: { url: "${PROD_URL}" }
+        globalArgs: {dbclhistory-enabled: "false"}
+
 
 ###
 ### Always execute
@@ -52,3 +69,8 @@ endStage:
   actions:
     - type: liquibase
       command: history
+      cmdArgs: { url: "${DEV_URL}" }
+
+    - type: liquibase
+      command: history
+      cmdArgs: { url: "${PROD_URL}" }

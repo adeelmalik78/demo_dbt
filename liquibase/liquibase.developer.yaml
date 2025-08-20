@@ -1,0 +1,121 @@
+###
+### Liquibase version: 4.30.0+
+###
+### Liquibase sales: https://www.liquibase.com/contact-us
+### Liquibase support: https://support.liquibase.com
+###
+
+###
+### Flow documentation: https://docs.liquibase.com/commands/flow/flow.html
+###
+
+###
+### Global variables used in the flowfile
+###
+globalVariables:
+  LB_BASE_DIR: "${LB_BASE_DIR:-.}"
+  LB_ENVIRONMENT: "${LB_ENVIRONMENT:-DEV}"
+  LB_LABELS: "${LB_LABELS:-null}"
+  LB_TEST_CHECKS: "${LB_TEST_CHECKS:-T}"
+
+  SNAPSHOT_FILE: "snapshots/Snapshot_${LB_ENVIRONMENT}.json"
+
+  # DBT_MODELS: "${DBT_MODELS:-customer_order_summary orders_view}"
+  DBT_PROFILE_DEV: "${DBT_PROFILE:-liquibase_dev}"
+  DBT_PROJECT_DIR: "${DBT_PROJECT_DIR:-/Users/adeelmalik/Desktop/LiquibaseHub/DBT}"
+  DBT_URL_DEV: "jdbc:snowflake://ba89345.us-east-2.aws.snowflakecomputing.com/?warehouse=CUSTOMERSUCCESS_WH&db=AMDB_DEV&schema=DBT&user=adeelmalik"
+  DBT_OFFLINE_URL: "offline:snowflake?snapshot=${SNAPSHOT_FILE}"
+
+  CHECKS_REPORT: "reports/Checks_${LB_ENVIRONMENT}.html"
+  UPDATE_REPORT: "reports/Update_${LB_ENVIRONMENT}.html"
+  DRIFT_REPORT: "reports/Drift_${LB_ENVIRONMENT}.html"
+  DIFF_JSON_FILE: "reports/diff_${LB_ENVIRONMENT}.json"
+
+  LIQUIBASE_COMMAND_URL: "${DBT_URL_DEV}"
+
+###
+### Stages to execute
+###
+stages:
+  PreDeploy:
+    actions:
+      #
+      # Validate database connection
+      # https://docs.liquibase.com/commands/change-tracking/connect.html
+      #
+      - type: liquibase
+        command: connect
+
+  Snapshot:
+    actions:
+      #
+      # Create updated snapshot
+      # https://docs.liquibase.com/commands/inspection/snapshot.html
+      #
+      - type: liquibase
+        command: snapshot
+        cmdArgs: { schemas: "DBT",
+                    catalogs: "AMDB_DEV",
+                    snapshotFormat: "json" 
+                  }
+        globalArgs: { outputfile: "${SNAPSHOT_FILE}" }
+
+  Update_DEV_DB:
+    actions:
+      #
+      # Run Data Build Tool
+      #
+      - type: shell
+        # if: "${DBT_BUILD} == T"
+        command: |
+          export DBT_MODELS="`Scripts/get_sql_models.sh`"
+          echo DBT_MODELS=${DBT_MODELS}
+          echo "dbt build --profile ${DBT_PROFILE_DEV} --target dev --project-dir ${DBT_PROJECT_DIR} --select "${DBT_MODELS}" --full-refresh"
+          dbt build --profile ${DBT_PROFILE_DEV} --target dev --project-dir ${DBT_PROJECT_DIR} --select "${DBT_MODELS}" --full-refresh
+
+  Report_New_Changes:
+    actions:
+      - type: liquibase
+        command: diff
+        cmdArgs: { referenceUrl: "${DBT_URL_DEV}",
+                      url: "${DBT_OFFLINE_URL}", 
+                      schemas: "DBT",
+                      catalogs: "AMDB_DEV",
+                      include-catalog="true",
+                      include-schema="true",
+                      format: json,
+                      reports-enabled: "true",
+                      reports-path: "${LB_BASE_DIR}",
+                      reports-name: "${DRIFT_REPORT}"
+                      # drift-severity: 1,
+                      # drift-severity-missing: 2,
+                      # drift-severity-unexpected: 3,
+                      # drift-severity-changed: 4
+                  }
+        globalArgs: { outputFile: "${DIFF_JSON_FILE}", 
+                        mirror-console-messages-to-log: "true"
+                    }
+
+  Convert_to_Liquibase_formatted_sql:
+    actions:
+      # 
+      # Shell action from a flow file
+      # https://docs.liquibase.com/liquibase-pro/flow/shell-commands.html
+      #
+      - type: shell
+        command: Scripts/convert_sql_to_liquibase.sh
+
+      - type: shell
+        command: Scripts/replace_database_references.sh
+
+###
+### Always execute
+###
+endStage:
+  actions:
+    #
+    # Show deployed changes
+    # https://docs.liquibase.com/commands/change-tracking/history.html
+    #
+    - type: liquibase
+      command: history
