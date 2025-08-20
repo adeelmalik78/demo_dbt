@@ -73,4 +73,6 @@ models:
         description: "Timestamp when the order was last modified"
       - name: order_value_type
         description: "'high_value' if total_amount > 1000, else 'regular'"
+      - name: order_age_days
+        description: "Number of days since the order was placed"
 

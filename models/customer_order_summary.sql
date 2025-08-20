@@ -55,6 +55,7 @@ final as (
     select
         c.customer_id,
         c.customer_name,
+        -- c.signup_date,
         coalesce(ao.order_count, 0) as order_count,
         coalesce(ao.total_spent, 0) as total_spent,
         ao.last_order_date,
